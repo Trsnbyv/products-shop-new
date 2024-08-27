@@ -133,7 +133,7 @@ const App = () => {
           <Spin />
         </div>
       ) : (
-        <ul className="flex justify-between flex-wrap gap-[30px]">
+        <ul className="flex justify-start flex-wrap gap-[37px]">
           {state.filteredProducts.map((product) => (
             <li
               key={product.id}
@@ -146,7 +146,7 @@ const App = () => {
                 className="w-full mx-auto mb-3"
                 src={product.images[0]}
               />
-              <div className="p-3">
+              <div className="p-3 text-left">
                 <h3 className="text-[20px] font-semibold mb-3">
                   {product.title}
                 </h3>
