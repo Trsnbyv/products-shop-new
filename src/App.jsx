@@ -1,76 +1,34 @@
-import { useReducer, useEffect } from "react";
-import { Button, Input, Spin } from "antd";
+import { useSelector, useDispatch } from "react-redux";
+import { Button, Input, Spin, Select } from "antd";
 import { HeartOutlined, HeartFilled } from "@ant-design/icons";
 import { toast, Toaster } from "react-hot-toast";
 import useAxios from "./hooks/useAxios";
+import {
+  addFavorite,
+  removeFavorite,
+  deleteProduct,
+  filterProductsByCategory,
+  showAllProducts,
+  filterProducts,
+} from "./store/productsSlice";
 import "antd/dist/reset.css";
 import "./App.css";
 
 const { Search } = Input;
-
-const initialState = {
-  products: [],
-  favorites: [],
-  filteredProducts: [],
-  loading: true,
-};
-
-const reducer = (state, action) => {
-  switch (action.type) {
-    case "SET_PRODUCTS":
-      return {
-        ...state,
-        products: action.payload,
-        filteredProducts: action.payload,
-      };
-    case "ADD_FAVORITE":
-      return { ...state, favorites: [...state.favorites, action.payload] };
-    case "REMOVE_FAVORITE":
-      return {
-        ...state,
-        favorites: state.favorites.filter((item) => item.id !== action.payload),
-      };
-    case "DELETE_PRODUCT":
-      const updatedProducts = state.products.filter(
-        (product) => product.id !== action.payload
-      );
-      return {
-        ...state,
-        products: updatedProducts,
-        filteredProducts: updatedProducts,
-      };
-    case "FILTER_PRODUCTS":
-      return { ...state, filteredProducts: action.payload };
-    case "SHOW_ALL_PRODUCTS":
-      return { ...state, filteredProducts: state.products };
-    default:
-      return state;
-  }
-};
+const { Option } = Select;
 
 const App = () => {
-  const { data, loading } = useAxios(import.meta.env.VITE_API_URL);
-  const [state, dispatch] = useReducer(reducer, initialState);
-
-  useEffect(() => {
-    const savedProducts = JSON.parse(localStorage.getItem("products")) || [];
-    if (savedProducts.length > 0) {
-      dispatch({ type: "SET_PRODUCTS", payload: savedProducts });
-    } else {
-      dispatch({ type: "SET_PRODUCTS", payload: data });
-    }
-  }, [data]);
-
-  useEffect(() => {
-    localStorage.setItem("products", JSON.stringify(state.products));
-  }, [state.products]);
+  useAxios(import.meta.env.VITE_API_URL);
+  const dispatch = useDispatch();
+  const { products, favorites, filteredProducts, categories, loading } =
+    useSelector((state) => state.products);
 
   const handleFavorite = (product) => {
-    const isFavorite = state.favorites.some((fav) => fav.id === product.id);
+    const isFavorite = favorites.some((fav) => fav.id === product.id);
     if (isFavorite) {
-      dispatch({ type: "REMOVE_FAVORITE", payload: product.id });
+      dispatch(removeFavorite(product.id));
     } else {
-      dispatch({ type: "ADD_FAVORITE", payload: product });
+      dispatch(addFavorite(product));
     }
   };
 
@@ -78,11 +36,7 @@ const App = () => {
     try {
       toast.success("Product deleted successfully!");
       setTimeout(() => {
-        dispatch({ type: "DELETE_PRODUCT", payload: productId });
-        const updatedProducts = state.products.filter(
-          (product) => product.id !== productId
-        );
-        localStorage.setItem("products", JSON.stringify(updatedProducts));
+        dispatch(deleteProduct(productId));
       }, 1000);
     } catch (error) {
       console.error("Failed to delete the product:", error);
@@ -91,13 +45,15 @@ const App = () => {
   };
 
   const handleSearch = (value) => {
-    const filtered = state.products.filter((product) =>
+    const filtered = products.filter((product) =>
       product.title.toLowerCase().includes(value.toLowerCase())
     );
-    dispatch({ type: "FILTER_PRODUCTS", payload: filtered });
+    dispatch(filterProductsByCategory(filtered));
   };
 
-  useEffect(() => {}, [state.filteredProducts]);
+  const handleCategoryChange = (value) => {
+    dispatch(filterProductsByCategory(value));
+  };
 
   const truncateDescription = (description, wordLimit) => {
     const words = description.split(" ");
@@ -106,6 +62,7 @@ const App = () => {
     }
     return description;
   };
+
   return (
     <div className="p-6">
       <Toaster />
@@ -115,16 +72,25 @@ const App = () => {
           onSearch={handleSearch}
           className="w-1/4"
         />
+        <Select
+          allowClear
+          defaultValue="All"
+          onChange={handleCategoryChange}
+          className="w-1/4"
+        >
+          <Option value="All">All</Option>
+          {categories.map((category) => (
+            <Option key={category} value={category}>
+              {category}
+            </Option>
+          ))}
+        </Select>
         <div className="flex space-x-4">
-          <Button onClick={() => dispatch({ type: "SHOW_ALL_PRODUCTS" })}>
+          <Button onClick={() => dispatch(showAllProducts())}>
             All Products
           </Button>
-          <Button
-            onClick={() =>
-              dispatch({ type: "FILTER_PRODUCTS", payload: state.favorites })
-            }
-          >
-            <HeartFilled /> ({state.favorites.length})
+          <Button onClick={() => dispatch(filterProducts(favorites))}>
+            <HeartFilled /> ({favorites.length})
           </Button>
         </div>
       </div>
@@ -134,7 +100,7 @@ const App = () => {
         </div>
       ) : (
         <ul className="flex justify-start flex-wrap gap-[37px]">
-          {state.filteredProducts.map((product) => (
+          {filteredProducts.map((product) => (
             <li
               key={product.id}
               className="flex flex-col w-[340px] shadow-lg text-center overflow-hidden rounded-[20px] hover:shadow-2xl duration-300"
@@ -151,7 +117,9 @@ const App = () => {
                   {product.title}
                 </h3>
                 <div className="h-[1px] bg-slate-500 mb-3"></div>
-                <p className="mb-3">{truncateDescription(product.description, 50)}</p>
+                <p className="mb-3">
+                  {truncateDescription(product.description, 50)}
+                </p>
                 <p className="text-[18px] text-gray-500">
                   Price:{" "}
                   <span className="text-black font-semibold">
@@ -166,17 +134,15 @@ const App = () => {
                 </p>
                 <div className="flex justify-center gap-3">
                   <Button onClick={() => handleFavorite(product)}>
-                    {state.favorites.some((fav) => fav.id === product.id) ? (
+                    {favorites.some((fav) => fav.id === product.id) ? (
                       <HeartFilled />
                     ) : (
                       <HeartOutlined />
                     )}
-                  </Button>         
+                  </Button>
                   <Button
                     onClick={() => handleDelete(product.id)}
                     className="text-red-500"
-                    loading={loading}
-                    key={product.id}
                   >
                     Delete
                   </Button>
